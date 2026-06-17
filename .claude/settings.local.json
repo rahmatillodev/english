@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@tailwindcss/vite/package.json'\\).version\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/@tailwindcss/vite/package.json'\\); console.log\\('peer:', JSON.stringify\\(p.peerDependencies\\)\\); console.log\\('deps:', JSON.stringify\\(p.dependencies\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/vite/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/vite/package.json'\\).name\\)\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/framer-motion/package.json'\\).version\\)\")"
+    ]
+  }
+}

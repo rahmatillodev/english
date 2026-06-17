@@ -1,0 +1,319 @@
+import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  BookMarked,
+  Layers,
+  X,
+  Check,
+  RotateCcw,
+  ArrowLeft,
+  PartyPopper,
+  Search,
+} from 'lucide-react'
+import { useLocalStorage } from '../hooks/useLocalStorage'
+import { STORAGE_KEYS } from '../lib/storage'
+import { stagger, staggerItem } from '../lib/motion'
+import { Card, PageHeader, Button, Badge, EmptyState } from '../components/ui'
+import SpeakButton from '../components/SpeakButton'
+import { useToast } from '../components/Toast'
+
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'known', label: 'Known' },
+  { key: 'unknown', label: 'Still learning' },
+]
+
+export default function Vocabulary() {
+  const toast = useToast()
+  const [vocab, setVocab] = useLocalStorage(STORAGE_KEYS.vocabulary, [])
+  const [filter, setFilter] = useState('all')
+
+  // Flashcard session state
+  const [flashOn, setFlashOn] = useState(false)
+  const [deck, setDeck] = useState([]) // ids captured when session starts
+  const [pos, setPos] = useState(0)
+  const [revealed, setRevealed] = useState(false)
+
+  const filtered = vocab.filter((v) =>
+    filter === 'all' ? true : v.status === filter,
+  )
+
+  const counts = {
+    all: vocab.length,
+    known: vocab.filter((v) => v.status === 'known').length,
+    unknown: vocab.filter((v) => v.status === 'unknown').length,
+  }
+
+  function updateWord(id, patch) {
+    setVocab((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)))
+  }
+
+  function removeWord(id) {
+    setVocab((prev) => prev.filter((v) => v.id !== id))
+    toast.info('Word removed')
+  }
+
+  function toggleStatus(v) {
+    updateWord(v.id, { status: v.status === 'known' ? 'unknown' : 'known' })
+  }
+
+  // ---- Flashcards ----
+  function startFlashcards() {
+    const ids = filtered.map((v) => v.id)
+    if (ids.length === 0) return
+    setDeck(ids)
+    setPos(0)
+    setRevealed(false)
+    setFlashOn(true)
+  }
+
+  function answerCard(known) {
+    const id = deck[pos]
+    const card = vocab.find((v) => v.id === id)
+    if (card) {
+      updateWord(id, {
+        status: known ? 'known' : 'unknown',
+        timesReviewed: (card.timesReviewed ?? 0) + 1,
+      })
+    }
+    setRevealed(false)
+    setPos((p) => p + 1)
+  }
+
+  const currentCard =
+    flashOn && pos < deck.length
+      ? vocab.find((v) => v.id === deck[pos])
+      : null
+  const progress = deck.length ? (pos / deck.length) * 100 : 0
+
+  return (
+    <div>
+      <PageHeader
+        icon={BookMarked}
+        title="Vocabulary Bank"
+        subtitle="Review the words you saved from the Translator."
+      >
+        {vocab.length > 0 && !flashOn && (
+          <Button onClick={startFlashcards} disabled={filtered.length === 0}>
+            <Layers size={16} /> Flashcards
+          </Button>
+        )}
+      </PageHeader>
+
+      {/* Flashcard mode */}
+      {flashOn ? (
+        <Card hover={false}>
+          {currentCard ? (
+            <div className="py-4">
+              {/* Progress */}
+              <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                <span>
+                  Card {pos + 1} of {deck.length}
+                </span>
+                <span>
+                  {counts.known} known · {counts.unknown} learning
+                </span>
+              </div>
+              <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500"
+                  animate={{ width: `${progress}%` }}
+                  transition={{ ease: [0.22, 1, 0.36, 1], duration: 0.4 }}
+                />
+              </div>
+
+              {/* Flip card */}
+              <div className="h-60" style={{ perspective: 1200 }}>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentCard.id}
+                    initial={{ x: 60, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={{ x: -60, opacity: 0 }}
+                    transition={{ duration: 0.28 }}
+                    className="h-full"
+                  >
+                    <motion.div
+                      onClick={() => setRevealed((r) => !r)}
+                      animate={{ rotateY: revealed ? 180 : 0 }}
+                      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                      style={{ transformStyle: 'preserve-3d' }}
+                      className="relative h-full w-full cursor-pointer"
+                    >
+                      {/* Front */}
+                      <div
+                        style={{ backfaceVisibility: 'hidden' }}
+                        className="glass absolute inset-0 flex flex-col items-center justify-center rounded-2xl p-6 text-center"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-3xl font-bold text-slate-50">
+                            {currentCard.word}
+                          </span>
+                          <SpeakButton text={currentCard.word} size={18} />
+                        </div>
+                        <span className="mt-4 inline-flex items-center gap-1.5 text-xs text-slate-500">
+                          <RotateCcw size={12} /> Tap to flip
+                        </span>
+                      </div>
+                      {/* Back */}
+                      <div
+                        style={{
+                          backfaceVisibility: 'hidden',
+                          transform: 'rotateY(180deg)',
+                        }}
+                        className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl border border-indigo-400/30 bg-gradient-to-br from-indigo-500/20 to-fuchsia-500/10 p-6 text-center backdrop-blur"
+                      >
+                        <div className="text-2xl font-semibold text-indigo-200">
+                          {currentCard.translation}
+                        </div>
+                        {currentCard.example && (
+                          <p className="mt-3 max-w-md text-sm text-slate-300">
+                            {currentCard.example}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Controls */}
+              <div className="mt-6 flex justify-center">
+                {revealed ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-3"
+                  >
+                    <Button variant="danger" onClick={() => answerCard(false)}>
+                      <X size={16} /> Didn't know it
+                    </Button>
+                    <Button onClick={() => answerCard(true)}>
+                      <Check size={16} /> Knew it
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <Button variant="secondary" onClick={() => setRevealed(true)}>
+                    Reveal translation
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="py-10 text-center"
+            >
+              <motion.div
+                initial={{ rotate: -12, scale: 0.6 }}
+                animate={{ rotate: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 14 }}
+                className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-amber-400/25 to-fuchsia-500/15 text-amber-300 ring-1 ring-inset ring-white/10"
+              >
+                <PartyPopper size={30} />
+              </motion.div>
+              <p className="text-lg font-bold text-slate-50">
+                Session complete!
+              </p>
+              <p className="mt-1 text-sm text-slate-400">
+                You reviewed {deck.length} card{deck.length === 1 ? '' : 's'}.
+              </p>
+            </motion.div>
+          )}
+
+          <div className="mt-4 text-center">
+            <Button variant="ghost" onClick={() => setFlashOn(false)}>
+              <ArrowLeft size={16} /> Back to list
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <>
+          {/* Filters */}
+          <div className="mb-5 flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <motion.button
+                key={f.key}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setFilter(f.key)}
+                className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  filter === f.key
+                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                {f.label} ({counts[f.key]})
+              </motion.button>
+            ))}
+          </div>
+
+          {vocab.length === 0 ? (
+            <EmptyState icon={BookMarked} title="Your vocabulary bank is empty">
+              Save words from the Translator to build your bank.
+            </EmptyState>
+          ) : filtered.length === 0 ? (
+            <EmptyState icon={Search} title="No words in this filter" />
+          ) : (
+            <motion.ul
+              variants={stagger}
+              initial="hidden"
+              animate="show"
+              className="space-y-2"
+            >
+              <AnimatePresence>
+                {filtered.map((v) => (
+                  <motion.li
+                    key={v.id}
+                    variants={staggerItem}
+                    layout
+                    exit={{ opacity: 0, x: -40, transition: { duration: 0.2 } }}
+                  >
+                    <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-100">
+                            {v.word}
+                          </span>
+                          <SpeakButton text={v.word} />
+                          <span className="text-slate-600">·</span>
+                          <span className="text-slate-300">{v.translation}</span>
+                        </div>
+                        {v.example && (
+                          <p className="mt-1 truncate text-sm text-slate-500">
+                            {v.example}
+                          </p>
+                        )}
+                        <div className="mt-1.5 text-xs text-slate-600">
+                          Reviewed {v.timesReviewed ?? 0}×
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          onClick={() => toggleStatus(v)}
+                          title="Toggle status"
+                        >
+                          <Badge tone={v.status === 'known' ? 'green' : 'amber'}>
+                            {v.status === 'known' ? 'Known' : 'Still learning'}
+                          </Badge>
+                        </button>
+                        <button
+                          onClick={() => removeWord(v.id)}
+                          className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition-colors hover:bg-rose-500/15 hover:text-rose-300"
+                          title="Remove"
+                          aria-label="Remove word"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </Card>
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </motion.ul>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
