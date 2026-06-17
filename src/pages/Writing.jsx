@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { PenLine, Sparkles, AlertTriangle, MessageSquareQuote } from 'lucide-react'
-import { generateTopic, checkWriting } from '../api/claudeService'
+import { generateTopic, checkWriting } from '../api/geminiService'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { STORAGE_KEYS, makeId } from '../lib/storage'
 import { renderBold } from '../lib/markup.jsx'

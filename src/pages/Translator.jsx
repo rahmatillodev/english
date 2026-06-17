@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Languages, Copy, Plus, Check, AlertTriangle, ArrowRight } from 'lucide-react'
-import { translate } from '../api/claudeService'
+import { translate } from '../api/geminiService'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import {
   STORAGE_KEYS,

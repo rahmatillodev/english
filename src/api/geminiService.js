@@ -1,59 +1,86 @@
-// All Claude API calls for the app live here.
+// All AI calls for the app live here, using the Google AI Studio
+// (Gemini) API via the Generative Language REST endpoint.
 //
-// NOTE ON SECURITY: this calls the Anthropic API directly from the browser, so
-// the API key ships to the client. That's an accepted tradeoff for a single-user
+// NOTE ON SECURITY: this calls the Gemini API directly from the browser, so the
+// API key ships to the client. That's an accepted tradeoff for a single-user
 // personal project (see README). To harden it, route these calls through a
 // Netlify Function and keep the key server-side — the function would accept the
-// same { prompt, schema } shape and the UI wouldn't change.
+// same { prompt, schema } shape and the UI wouldn't change. Also restrict the
+// key in Google AI Studio (HTTP referrer / API restrictions).
 
-const API_URL = 'https://api.anthropic.com/v1/messages'
+// Fast, capable, low-cost model. Swap to another id (e.g. gemini-2.5-pro) here.
+const MODEL = 'gemini-2.5-flash'
 
-// Current, non-deprecated Sonnet. (The spec's claude-sonnet-4-20250514 retires
-// 2026-06-15.) Swap to another model id here if you want.
-const MODEL = 'claude-sonnet-4-6'
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`
 
 export class ApiKeyMissingError extends Error {
   constructor() {
-    super('No API key set. Add VITE_ANTHROPIC_API_KEY to your .env file.')
+    super('No API key set. Add VITE_GEMINI_API_KEY to your .env file.')
     this.name = 'ApiKeyMissingError'
   }
 }
 
+// Gemini's responseSchema uses an OpenAPI-3.0 subset: types are UPPERCASE and
+// `additionalProperties` is not allowed. Convert our JSON-Schema definitions to
+// that shape so we can keep writing them in the familiar lowercase style below.
+function toGeminiSchema(node) {
+  if (Array.isArray(node)) return node.map(toGeminiSchema)
+  if (node && typeof node === 'object') {
+    const out = {}
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'additionalProperties') continue
+      if (key === 'type' && typeof value === 'string') {
+        out.type = value.toUpperCase()
+      } else if (key === 'properties' && value && typeof value === 'object') {
+        out.properties = Object.fromEntries(
+          Object.entries(value).map(([k, v]) => [k, toGeminiSchema(v)]),
+        )
+      } else if (key === 'items') {
+        out.items = toGeminiSchema(value)
+      } else {
+        out[key] = value
+      }
+    }
+    // Keep a stable field order in the model's output.
+    if (out.type === 'OBJECT' && Array.isArray(out.required)) {
+      out.propertyOrdering = out.required
+    }
+    return out
+  }
+  return node
+}
+
 // Low-level request: sends a prompt and constrains the reply to `schema` using
-// structured outputs, then returns the parsed object.
-async function requestJSON(prompt, schema, { system, maxTokens = 1500 } = {}) {
+// structured output (responseMimeType + responseSchema), then returns the
+// parsed object.
+async function requestJSON(prompt, schema, { system, maxTokens = 2048 } = {}) {
   if (!API_KEY) throw new ApiKeyMissingError()
 
   let res
   try {
-    res = await fetch(API_URL, {
+    res = await fetch(`${API_URL}?key=${encodeURIComponent(API_KEY)}`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': API_KEY,
-        'anthropic-version': '2023-06-01',
-        // Required to call the API directly from a browser (opts into CORS).
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: MODEL,
-        max_tokens: maxTokens,
-        ...(system ? { system } : {}),
-        messages: [{ role: 'user', content: prompt }],
-        // Guarantee the response is valid JSON matching our schema.
-        output_config: {
-          format: {
-            type: 'json_schema',
-            schema,
-          },
+        ...(system
+          ? { systemInstruction: { parts: [{ text: system }] } }
+          : {}),
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: toGeminiSchema(schema),
+          maxOutputTokens: maxTokens,
+          // Skip "thinking" — these are short structured tasks, so this is
+          // faster, cheaper, and keeps the whole token budget for the answer.
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     })
   } catch (networkErr) {
     throw new Error(
-      `Network error reaching Claude. Check your connection. (${networkErr.message})`,
+      `Network error reaching Gemini. Check your connection. (${networkErr.message})`,
     )
   }
 
@@ -65,20 +92,44 @@ async function requestJSON(prompt, schema, { system, maxTokens = 1500 } = {}) {
     } catch {
       detail = await res.text().catch(() => '')
     }
-    if (res.status === 401) {
-      throw new Error('Invalid API key (401). Check VITE_ANTHROPIC_API_KEY.')
+    if (res.status === 400 && /api[_ ]?key/i.test(detail)) {
+      throw new Error('Invalid API key. Check VITE_GEMINI_API_KEY.')
+    }
+    if (res.status === 403) {
+      throw new Error(
+        'Access denied (403). Check the key and its API restrictions in Google AI Studio.',
+      )
     }
     if (res.status === 429) {
       throw new Error('Rate limited (429). Wait a moment and try again.')
     }
-    throw new Error(`Claude API error ${res.status}: ${detail}`)
+    throw new Error(`Gemini API error ${res.status}: ${detail}`)
   }
 
   const data = await res.json()
-  const text = data?.content?.find((b) => b.type === 'text')?.text ?? ''
-  if (data?.stop_reason === 'refusal') {
+
+  // The prompt itself can be blocked before any candidate is produced.
+  if (data?.promptFeedback?.blockReason) {
+    throw new Error(
+      `The request was blocked (${data.promptFeedback.blockReason}). Try rephrasing.`,
+    )
+  }
+
+  const candidate = data?.candidates?.[0]
+  const finish = candidate?.finishReason
+  if (finish === 'SAFETY' || finish === 'RECITATION') {
     throw new Error('The model declined to answer this request.')
   }
+
+  const text =
+    candidate?.content?.parts?.map((p) => p.text).filter(Boolean).join('') ?? ''
+  if (!text) {
+    if (finish === 'MAX_TOKENS') {
+      throw new Error('Response was cut off (token limit). Please try again.')
+    }
+    throw new Error('Empty response from the model. Please try again.')
+  }
+
   try {
     return JSON.parse(text)
   } catch {
@@ -245,7 +296,7 @@ export function checkWriting({ topic, userText }) {
     `- A warm overall comment with encouragement.`
   return requestJSON(prompt, FEEDBACK_SCHEMA, {
     system: TUTOR_SYSTEM,
-    maxTokens: 2500,
+    maxTokens: 3072,
   })
 }
 

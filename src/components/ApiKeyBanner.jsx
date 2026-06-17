@@ -1,5 +1,5 @@
 import { KeyRound } from 'lucide-react'
-import { hasApiKey } from '../api/claudeService'
+import { hasApiKey } from '../api/geminiService'
 
 // Shown at the top of pages that need the API when no key is configured.
 export default function ApiKeyBanner() {
@@ -10,7 +10,7 @@ export default function ApiKeyBanner() {
       <div>
         <strong className="font-semibold">No API key configured.</strong> Create
         a <code className="rounded bg-black/30 px-1">.env</code> file with{' '}
-        <code className="rounded bg-black/30 px-1">VITE_ANTHROPIC_API_KEY=…</code>{' '}
+        <code className="rounded bg-black/30 px-1">VITE_GEMINI_API_KEY=…</code>{' '}
         and restart the dev server. See the README for setup.
       </div>
     </div>
