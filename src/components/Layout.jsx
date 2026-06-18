@@ -10,6 +10,7 @@ import {
   Flame,
   GraduationCap,
   Search,
+  Settings,
 } from 'lucide-react'
 import { useStreak } from '../hooks/useStreak'
 import { springSnappy } from '../lib/motion'
@@ -22,6 +23,7 @@ const NAV = [
   { to: '/writing', label: 'Writing', Icon: PenLine },
   { to: '/vocabulary', label: 'Vocabulary', Icon: BookMarked },
   { to: '/progress', label: 'Progress', Icon: BarChart3 },
+  { to: '/settings', label: 'Settings', Icon: Settings },
 ]
 
 function NavItem({ to, label, Icon, end, layout }) {

@@ -8,6 +8,7 @@ import {
   PenLine,
   BookMarked,
   BarChart3,
+  Settings,
   CornerDownLeft,
   ArrowUp,
   ArrowDown,
@@ -21,6 +22,7 @@ const PAGES = [
   { label: 'Writing Practice', to: '/writing', Icon: PenLine, kind: 'Page' },
   { label: 'Vocabulary Bank', to: '/vocabulary', Icon: BookMarked, kind: 'Page' },
   { label: 'Progress', to: '/progress', Icon: BarChart3, kind: 'Page' },
+  { label: 'Settings', to: '/settings', Icon: Settings, kind: 'Page' },
 ]
 
 // Global search / command palette. Opens with Cmd/Ctrl+K. Lets the user jump

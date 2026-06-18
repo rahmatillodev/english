@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   MessageSquareQuote,
   Search,
+  Check,
 } from 'lucide-react'
 import { generateTopic, checkWriting } from '../api/geminiService'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -36,6 +37,10 @@ function avgScore(scores) {
 // Plain text with the **bold** markers stripped (for text-to-speech).
 function stripMarkers(text = '') {
   return text.replace(/\*\*/g, '')
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 // Renders one feedback object (corrected text, errors, scores, comment).
@@ -143,6 +148,7 @@ export default function Writing() {
   const [checking, setChecking] = useState(false)
   const [checkError, setCheckError] = useState('')
   const [feedback, setFeedback] = useState(null)
+  const [override, setOverride] = useState(false) // bypass the required-word gate
 
   const [history, setHistory] = useLocalStorage(STORAGE_KEYS.writing, [])
   const [historyQuery, setHistoryQuery] = useState('')
@@ -159,10 +165,31 @@ export default function Writing() {
     [userText],
   )
 
+  // Which of the topic's required words appear in the text (whole-word, case-
+  // insensitive). Drives the live chip highlighting and the check-button gate.
+  const usage = useMemo(() => {
+    const words = topic?.requiredWords ?? []
+    const text = userText.toLowerCase()
+    return words.map((w) => {
+      const term = (w.en || '').toLowerCase().trim()
+      const used = term
+        ? new RegExp(`\\b${escapeRegExp(term)}\\b`).test(text)
+        : false
+      return { ...w, used }
+    })
+  }, [topic, userText])
+
+  const usedCount = usage.filter((u) => u.used).length
+  const hasRequired = usage.length > 0
+  const allUsed = !hasRequired || usedCount === usage.length
+  const missing = usage.filter((u) => !u.used)
+  const gated = hasRequired && !allUsed && !override
+
   async function onGenerate() {
     setGenerating(true)
     setGenError('')
     setFeedback(null)
+    setOverride(false)
     try {
       const data = await generateTopic(difficulty)
       setTopic(data)
@@ -176,7 +203,7 @@ export default function Writing() {
   }
 
   async function onCheck() {
-    if (!userText.trim()) return
+    if (!userText.trim() || gated) return
     setChecking(true)
     setCheckError('')
     try {
@@ -192,6 +219,8 @@ export default function Writing() {
         userText: userText.trim(),
         feedback: data,
         scores: data.scores,
+        wordsUsed: usedCount,
+        wordsTotal: usage.length,
         date: new Date().toISOString(),
       }
       setHistory((prev) => [entry, ...prev])
@@ -217,6 +246,7 @@ export default function Writing() {
     )
     setUserText(entry.userText)
     setFeedback(entry.feedback)
+    setOverride(true) // re-opened text may predate the word gate
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -290,30 +320,47 @@ export default function Writing() {
                   {topic.instructions}
                 </p>
               )}
-              {topic.requiredWords?.length > 0 && (
+              {hasRequired && (
                 <div className="mt-4">
-                  <h4 className="mb-2 text-sm font-semibold text-slate-400">
-                    Use these words
-                  </h4>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-slate-400">
+                      Use these words
+                    </h4>
+                    <span
+                      className={`text-xs font-semibold ${
+                        allUsed ? 'text-emerald-300' : 'text-slate-400'
+                      }`}
+                    >
+                      {usedCount}/{usage.length} used
+                    </span>
+                  </div>
                   <motion.div
                     variants={stagger}
                     initial="hidden"
                     animate="show"
                     className="flex flex-wrap gap-2"
                   >
-                    {topic.requiredWords.map((w, i) => (
+                    {usage.map((w, i) => (
                       <motion.span
                         key={i}
                         variants={staggerItem}
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-900/60 px-2.5 py-1 text-sm"
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-sm transition-colors ${
+                          w.used
+                            ? 'bg-emerald-500/15 text-emerald-100 ring-1 ring-inset ring-emerald-400/30'
+                            : 'bg-slate-900/60 text-slate-100'
+                        }`}
                         title={w.uz}
                       >
-                        <span className="text-slate-100">{w.en}</span>
-                        <span className="text-slate-500">· {w.uz}</span>
-                        <SpeakButton
-                          text={w.en}
-                          className="h-5 w-5 text-xs"
-                        />
+                        {w.used && (
+                          <Check size={13} className="text-emerald-300" />
+                        )}
+                        <span>{w.en}</span>
+                        <span
+                          className={w.used ? 'text-emerald-300/70' : 'text-slate-500'}
+                        >
+                          · {w.uz}
+                        </span>
+                        <SpeakButton text={w.en} className="h-5 w-5 text-xs" />
                       </motion.span>
                     ))}
                   </motion.div>
@@ -343,10 +390,32 @@ export default function Writing() {
           >
             {wordCount} words
           </motion.span>
-          <Button onClick={onCheck} disabled={checking || !userText.trim()}>
+          <Button onClick={onCheck} disabled={checking || !userText.trim() || gated}>
             {checking ? <Spinner label="Checking…" /> : 'Check my writing'}
           </Button>
         </div>
+        {gated && (
+          <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">
+            <div className="flex items-start gap-2">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <div className="flex-1">
+                Use all {usage.length} required words before checking. Still
+                missing:{' '}
+                <span className="font-semibold text-amber-100">
+                  {missing.map((m) => m.en).join(', ')}
+                </span>
+                .
+                <button
+                  type="button"
+                  onClick={() => setOverride(true)}
+                  className="ml-1 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+                >
+                  Check anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {checkError && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
             <AlertTriangle size={15} className="shrink-0" />
