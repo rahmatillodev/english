@@ -1,96 +1,176 @@
 @import 'tailwindcss';
 
-/* ─────────────────────────────────────────────────────────────
-   English Learning Hub — design tokens
-   Dark-first glassmorphism. Indigo learning + emerald progress.
-   ───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════
+   English Learning Hub — "Aurora" design system
+   Premium dark theme. Reliable faux-glass (no backdrop-filter on
+   content, so it never breaks inside animated/transformed wrappers).
+   ═══════════════════════════════════════════════════════════════ */
 @theme {
-  /* Surfaces */
-  --color-bg: #0b1120;
-  --color-surface: #131a2e;
-  --color-surface-2: #1a2138;
-  --color-border: #2a3552;
+  --color-bg: #07070d;
+  --color-surface: #11121d;
+  --color-surface-2: #181a28;
+  --color-border: #262a3d;
 
-  /* Brand */
   --color-brand: #6366f1;
   --color-brand-soft: #818cf8;
-  --color-brand-deep: #4f46e5;
-  --color-accent: #34d399; /* emerald — progress */
-  --color-magenta: #e879f9; /* fuchsia — accent variety */
+  --color-violet: #a855f7;
+  --color-fuchsia: #e879f9;
+  --color-emerald: #34d399;
+  --color-amber: #fbbf24;
 
-  /* Typography */
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 html {
   color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
-  background-color: #0b1120;
-  color: #e2e8f0;
+  background-color: #07070d;
+  color: #e7e9f3;
   font-family: var(--font-sans);
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  letter-spacing: -0.01em;
 }
 
-/* Tabular figures for stats/counters so they don't jitter while animating. */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
 }
 
-/* ── Glassmorphism surface ────────────────────────────────────
-   Frosted, layered, with a top light-reflection hairline. */
-.glass {
-  background: linear-gradient(
-    180deg,
-    rgba(30, 41, 59, 0.55) 0%,
-    rgba(15, 23, 42, 0.45) 100%
-  );
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  box-shadow:
-    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-    0 20px 40px -24px rgba(0, 0, 0, 0.7);
-}
-
-.glass-strong {
-  background: linear-gradient(
-    180deg,
-    rgba(30, 41, 59, 0.78) 0%,
-    rgba(15, 23, 42, 0.7) 100%
-  );
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-}
-
-/* Subtle moving conic sheen used on the primary CTA. */
-.sheen {
-  position: relative;
+/* ── Aurora background ─────────────────────────────────────────
+   A fixed layer with three drifting color fields + a vignette and
+   fine grid. transform/opacity only → GPU-friendly. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
   overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(120% 120% at 50% -10%, #0e0f1c 0%, #07070d 60%);
 }
-.sheen::after {
+.aurora::before,
+.aurora::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.18) 50%,
-    transparent 70%
-  );
-  transform: translateX(-120%);
-  transition: transform 0.7s ease;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.5;
 }
-.sheen:hover::after {
-  transform: translateX(120%);
+.aurora::before {
+  top: -20%;
+  left: -10%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.55), transparent 60%);
+  animation: float-a 22s ease-in-out infinite;
 }
+.aurora::after {
+  bottom: -25%;
+  right: -10%;
+  background: radial-gradient(circle, rgba(232, 121, 249, 0.4), transparent 60%);
+  animation: float-b 26s ease-in-out infinite;
+}
+.aurora__emerald {
+  position: absolute;
+  top: 35%;
+  left: 40%;
+  width: 40vw;
+  height: 40vw;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.28;
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.5), transparent 60%);
+  animation: float-c 30s ease-in-out infinite;
+}
+.aurora__grid {
+  position: absolute;
+  inset: -56px 0;
+  opacity: 0.05;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.6) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 30%, transparent 80%);
+  /* Scroll the grid cells left → right in a seamless loop (one cell = 56px). */
+  animation: grid-pan 7s linear infinite;
+}
+@keyframes grid-pan {
+  from { background-position: 0 0; }
+  to { background-position: 56px 0; }
+}
+@keyframes float-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8vw, 6vh) scale(1.12); }
+}
+@keyframes float-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-6vw, -5vh) scale(1.1); }
+}
+@keyframes float-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-5vw, 4vh) scale(1.15); }
+}
+
+/* ── Faux-glass surfaces (no backdrop-filter → always reliable) ──
+   Layered translucent fill + top light hairline + depth shadow. */
+.card {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(17, 18, 29, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    0 20px 40px -28px rgba(0, 0, 0, 0.9);
+}
+.card-hover {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+.card-hover:hover {
+  border-color: rgba(129, 140, 248, 0.4);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    0 28px 60px -30px rgba(0, 0, 0, 0.95),
+    0 0 40px -12px rgba(99, 102, 241, 0.45);
+}
+
+/* Real glass — ONLY for fixed chrome (sidebar/topbar/toasts) which is
+   never nested inside a transformed wrapper, so it stays correct. */
+.chrome-glass {
+  background: rgba(10, 11, 20, 0.72);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Entrance reveals (CSS-driven, never gate visibility on JS) ──
+   These always settle to a visible end state (animation-fill-mode: both),
+   and under prefers-reduced-motion they complete instantly (see bottom). */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.reveal {
+  animation: reveal-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.reveal-stagger > * {
+  animation: reveal-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.reveal-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.reveal-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.reveal-stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.reveal-stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.reveal-stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.reveal-stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.reveal-stagger > *:nth-child(7) { animation-delay: 0.4s; }
+.reveal-stagger > *:nth-child(8) { animation-delay: 0.46s; }
+.reveal-stagger > *:nth-child(n + 9) { animation-delay: 0.5s; }
 
 /* Animated brand text gradient. */
 .text-gradient {
@@ -102,83 +182,48 @@ body {
   animation: gradient-pan 6s linear infinite;
 }
 @keyframes gradient-pan {
-  to {
-    background-position: 200% 0;
-  }
+  to { background-position: 200% 0; }
 }
 
-/* Slow drifting ambient blobs behind the app. */
-@keyframes drift {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(24px, -28px) scale(1.08);
-  }
-}
-.animate-drift {
-  animation: drift 18s ease-in-out infinite;
-}
-
-/* Shimmer for skeletons / loading surfaces. */
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
-}
-.shimmer::before {
+/* Moving sheen for the primary CTA. */
+.sheen { position: relative; overflow: hidden; }
+.sheen::after {
   content: '';
   position: absolute;
   inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(148, 163, 184, 0.12),
-    transparent
-  );
-  animation: shimmer 1.4s infinite;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.22) 50%, transparent 70%);
+  transform: translateX(-130%);
+  transition: transform 0.7s ease;
 }
+.sheen:hover::after { transform: translateX(130%); }
 
-/* Slim scrollbars that fit the dark theme. */
+/* Scrollbars. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a3552 transparent;
+  scrollbar-color: #2a2e44 transparent;
 }
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-thumb {
-  background: #2a3552;
-  border-radius: 4px;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: #3a4870;
-}
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: #2a2e44; border-radius: 5px; }
+*::-webkit-scrollbar-thumb:hover { background: #3a3f5e; }
 
-/* Branded text selection. */
 ::selection {
-  background: rgba(129, 140, 248, 0.35);
-  color: #f8fafc;
+  background: rgba(168, 85, 247, 0.35);
+  color: #fff;
 }
 
-/* Bold markers used in writing feedback to highlight corrections. */
+/* Bold markers in writing feedback. */
 .feedback-text strong,
 .feedback-text b {
   color: #fca5a5;
   font-weight: 700;
 }
 
-/* Honour the OS "reduce motion" setting for CSS animations too
-   (Framer Motion is already handled via MotionConfig). */
+/* Respect reduced motion for CSS animations (Framer handled separately). */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }

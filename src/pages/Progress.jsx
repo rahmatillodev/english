@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
 import {
   ResponsiveContainer,
   BarChart,
@@ -14,7 +13,6 @@ import {
 import { BarChart3 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { STORAGE_KEYS, monthKey } from '../lib/storage'
-import { stagger, staggerItem } from '../lib/motion'
 import { Card, PageHeader, EmptyState } from '../components/ui'
 
 const AXIS = { fill: '#94a3b8', fontSize: 12 }
@@ -29,7 +27,7 @@ const TOOLTIP_STYLE = {
 
 function ChartCard({ title, hasData, emptyText, children }) {
   return (
-    <Card variants={staggerItem} className="mb-6">
+    <Card className="mb-6">
       <h2 className="mb-4 text-lg font-semibold text-slate-200">{title}</h2>
       {hasData ? (
         <div className="h-64 w-full">
@@ -103,7 +101,7 @@ export default function Progress() {
           Write essays and save vocabulary to see your progress here.
         </EmptyState>
       ) : (
-        <motion.div variants={stagger} initial="hidden" animate="show">
+        <div className="reveal-stagger">
           <ChartCard
             title="Top grammar mistakes"
             hasData={grammarData.length > 0}
@@ -179,7 +177,7 @@ export default function Progress() {
               />
             </LineChart>
           </ChartCard>
-        </motion.div>
+        </div>
       )}
     </div>
   )

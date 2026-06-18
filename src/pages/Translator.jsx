@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Languages, Copy, Plus, Check, AlertTriangle, ArrowRight } from 'lucide-react'
+import {
+  Languages,
+  Copy,
+  Plus,
+  Check,
+  AlertTriangle,
+  ArrowRight,
+  Search,
+} from 'lucide-react'
 import { translate } from '../api/geminiService'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import {
@@ -9,8 +17,14 @@ import {
   makeId,
   dayKey,
 } from '../lib/storage'
-import { stagger, staggerItem } from '../lib/motion'
-import { Card, PageHeader, Button, Badge, EmptyState } from '../components/ui'
+import {
+  Card,
+  PageHeader,
+  Button,
+  Badge,
+  EmptyState,
+  Input,
+} from '../components/ui'
 import Spinner from '../components/Spinner'
 import ApiKeyBanner from '../components/ApiKeyBanner'
 import SpeakButton from '../components/SpeakButton'
@@ -27,6 +41,20 @@ export default function Translator() {
 
   const [history, setHistory] = useLocalStorage(STORAGE_KEYS.translations, [])
   const [vocab, setVocab] = useLocalStorage(STORAGE_KEYS.vocabulary, [])
+
+  // History search + pagination so a long list stays fast and scannable.
+  const [historyQuery, setHistoryQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(12)
+
+  const filteredHistory = useMemo(() => {
+    const term = historyQuery.trim().toLowerCase()
+    if (!term) return history
+    return history.filter(
+      (h) =>
+        h.word.toLowerCase().includes(term) ||
+        h.translation.toLowerCase().includes(term),
+    )
+  }, [history, historyQuery])
 
   async function runTranslate(text) {
     const word = text.trim()
@@ -243,41 +271,61 @@ export default function Translator() {
       </AnimatePresence>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-slate-200">
-          History{' '}
-          <span className="text-sm font-normal text-slate-500">
-            (last {MAX_TRANSLATION_HISTORY})
-          </span>
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-slate-100">
+            History{' '}
+            <span className="text-sm font-normal text-slate-500">
+              ({history.length}/{MAX_TRANSLATION_HISTORY})
+            </span>
+          </h2>
+          {history.length > 6 && (
+            <Input
+              icon={Search}
+              value={historyQuery}
+              onChange={(e) => setHistoryQuery(e.target.value)}
+              placeholder="Search history…"
+              className="w-full sm:w-56"
+            />
+          )}
+        </div>
         {history.length === 0 ? (
           <EmptyState icon={Languages} title="No translations yet">
             Your translation history will appear here.
           </EmptyState>
+        ) : filteredHistory.length === 0 ? (
+          <EmptyState icon={Search} title="No matches">
+            Nothing in your history matches “{historyQuery}”.
+          </EmptyState>
         ) : (
-          <motion.ul
-            variants={stagger}
-            initial="hidden"
-            animate="show"
-            className="space-y-2"
-          >
-            {history.map((h) => (
-              <motion.li key={h.id} variants={staggerItem} layout>
-                <button
-                  onClick={() => onSynonymClick(h.word)}
-                  className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:border-indigo-400/30 hover:bg-white/[0.06]"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="font-medium text-slate-100">{h.word}</span>
-                    <ArrowRight size={13} className="text-slate-600" />
-                    <span className="text-slate-300">{h.translation}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-slate-500">
-                    {new Date(h.date).toLocaleDateString()}
-                  </span>
-                </button>
-              </motion.li>
-            ))}
-          </motion.ul>
+          <>
+            <ul className="reveal-stagger space-y-2">
+              {filteredHistory.slice(0, visibleCount).map((h) => (
+                <li key={h.id}>
+                  <button
+                    onClick={() => onSynonymClick(h.word)}
+                    className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:border-indigo-400/30 hover:bg-white/[0.06]"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="font-medium text-slate-100">{h.word}</span>
+                      <ArrowRight size={13} className="text-slate-600" />
+                      <span className="text-slate-300">{h.translation}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-500">
+                      {new Date(h.date).toLocaleDateString()}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {filteredHistory.length > visibleCount && (
+              <button
+                onClick={() => setVisibleCount((c) => c + 12)}
+                className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.06]"
+              >
+                Show more ({filteredHistory.length - visibleCount})
+              </button>
+            )}
+          </>
         )}
       </section>
     </div>

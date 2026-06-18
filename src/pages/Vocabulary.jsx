@@ -12,8 +12,14 @@ import {
 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { STORAGE_KEYS } from '../lib/storage'
-import { stagger, staggerItem } from '../lib/motion'
-import { Card, PageHeader, Button, Badge, EmptyState } from '../components/ui'
+import {
+  Card,
+  PageHeader,
+  Button,
+  Badge,
+  EmptyState,
+  Input,
+} from '../components/ui'
 import SpeakButton from '../components/SpeakButton'
 import { useToast } from '../components/Toast'
 
@@ -27,6 +33,8 @@ export default function Vocabulary() {
   const toast = useToast()
   const [vocab, setVocab] = useLocalStorage(STORAGE_KEYS.vocabulary, [])
   const [filter, setFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(20)
 
   // Flashcard session state
   const [flashOn, setFlashOn] = useState(false)
@@ -34,9 +42,15 @@ export default function Vocabulary() {
   const [pos, setPos] = useState(0)
   const [revealed, setRevealed] = useState(false)
 
-  const filtered = vocab.filter((v) =>
-    filter === 'all' ? true : v.status === filter,
-  )
+  const term = query.trim().toLowerCase()
+  const filtered = vocab.filter((v) => {
+    const byStatus = filter === 'all' ? true : v.status === filter
+    const byQuery =
+      !term ||
+      v.word.toLowerCase().includes(term) ||
+      v.translation.toLowerCase().includes(term)
+    return byStatus && byQuery
+  })
 
   const counts = {
     all: vocab.length,
@@ -230,22 +244,33 @@ export default function Vocabulary() {
         </Card>
       ) : (
         <>
-          {/* Filters */}
-          <div className="mb-5 flex flex-wrap gap-2">
-            {FILTERS.map((f) => (
-              <motion.button
-                key={f.key}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setFilter(f.key)}
-                className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
-                  filter === f.key
-                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-600/30'
-                    : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                }`}
-              >
-                {f.label} ({counts[f.key]})
-              </motion.button>
-            ))}
+          {/* Filters + search */}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              {FILTERS.map((f) => (
+                <motion.button
+                  key={f.key}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setFilter(f.key)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    filter === f.key
+                      ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-600/30'
+                      : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {f.label} ({counts[f.key]})
+                </motion.button>
+              ))}
+            </div>
+            {vocab.length > 8 && (
+              <Input
+                icon={Search}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search words…"
+                className="w-full sm:w-52"
+              />
+            )}
           </div>
 
           {vocab.length === 0 ? (
@@ -255,20 +280,10 @@ export default function Vocabulary() {
           ) : filtered.length === 0 ? (
             <EmptyState icon={Search} title="No words in this filter" />
           ) : (
-            <motion.ul
-              variants={stagger}
-              initial="hidden"
-              animate="show"
-              className="space-y-2"
-            >
-              <AnimatePresence>
-                {filtered.map((v) => (
-                  <motion.li
-                    key={v.id}
-                    variants={staggerItem}
-                    layout
-                    exit={{ opacity: 0, x: -40, transition: { duration: 0.2 } }}
-                  >
+            <>
+            <ul className="reveal-stagger space-y-2">
+                {filtered.slice(0, visibleCount).map((v) => (
+                  <li key={v.id}>
                     <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -307,10 +322,18 @@ export default function Vocabulary() {
                         </button>
                       </div>
                     </Card>
-                  </motion.li>
+                  </li>
                 ))}
-              </AnimatePresence>
-            </motion.ul>
+            </ul>
+            {filtered.length > visibleCount && (
+              <button
+                onClick={() => setVisibleCount((c) => c + 20)}
+                className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.06]"
+              >
+                Show more ({filtered.length - visibleCount})
+              </button>
+            )}
+            </>
           )}
         </>
       )}

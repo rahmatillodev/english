@@ -1,12 +1,25 @@
 import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { PenLine, Sparkles, AlertTriangle, MessageSquareQuote } from 'lucide-react'
+import {
+  PenLine,
+  Sparkles,
+  AlertTriangle,
+  MessageSquareQuote,
+  Search,
+} from 'lucide-react'
 import { generateTopic, checkWriting } from '../api/geminiService'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { STORAGE_KEYS, makeId } from '../lib/storage'
 import { renderBold } from '../lib/markup.jsx'
 import { stagger, staggerItem } from '../lib/motion'
-import { Card, PageHeader, Button, Badge, EmptyState } from '../components/ui'
+import {
+  Card,
+  PageHeader,
+  Button,
+  Badge,
+  EmptyState,
+  Input,
+} from '../components/ui'
 import StarRating from '../components/StarRating'
 import Spinner from '../components/Spinner'
 import ApiKeyBanner from '../components/ApiKeyBanner'
@@ -132,6 +145,14 @@ export default function Writing() {
   const [feedback, setFeedback] = useState(null)
 
   const [history, setHistory] = useLocalStorage(STORAGE_KEYS.writing, [])
+  const [historyQuery, setHistoryQuery] = useState('')
+  const [visibleCount, setVisibleCount] = useState(8)
+
+  const filteredHistory = useMemo(() => {
+    const term = historyQuery.trim().toLowerCase()
+    if (!term) return history
+    return history.filter((h) => h.topic?.toLowerCase().includes(term))
+  }, [history, historyQuery])
 
   const wordCount = useMemo(
     () => userText.trim().split(/\s+/).filter(Boolean).length,
@@ -340,22 +361,36 @@ export default function Writing() {
 
       {/* History */}
       <section className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold text-slate-200">
-          Past writings
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-slate-100">
+            Past writings{' '}
+            <span className="text-sm font-normal text-slate-500">
+              ({history.length})
+            </span>
+          </h2>
+          {history.length > 4 && (
+            <Input
+              icon={Search}
+              value={historyQuery}
+              onChange={(e) => setHistoryQuery(e.target.value)}
+              placeholder="Search topics…"
+              className="w-full sm:w-56"
+            />
+          )}
+        </div>
         {history.length === 0 ? (
           <EmptyState icon={PenLine} title="No writings yet">
             Generate a topic and write your first essay.
           </EmptyState>
+        ) : filteredHistory.length === 0 ? (
+          <EmptyState icon={Search} title="No matches">
+            No past writing matches “{historyQuery}”.
+          </EmptyState>
         ) : (
-          <motion.ul
-            variants={stagger}
-            initial="hidden"
-            animate="show"
-            className="space-y-2"
-          >
-            {history.map((h) => (
-              <motion.li key={h.id} variants={staggerItem} layout>
+          <>
+          <ul className="reveal-stagger space-y-2">
+            {filteredHistory.slice(0, visibleCount).map((h) => (
+              <li key={h.id}>
                 <button
                   onClick={() => openEntry(h)}
                   className="flex w-full items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3 text-left transition-colors hover:border-indigo-400/30 hover:bg-white/[0.06]"
@@ -372,9 +407,18 @@ export default function Writing() {
                     <StarRating value={avgScore(h.scores)} />
                   </span>
                 </button>
-              </motion.li>
+              </li>
             ))}
-          </motion.ul>
+          </ul>
+          {filteredHistory.length > visibleCount && (
+            <button
+              onClick={() => setVisibleCount((c) => c + 8)}
+              className="mt-3 w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/[0.06]"
+            >
+              Show more ({filteredHistory.length - visibleCount})
+            </button>
+          )}
+          </>
         )}
       </section>
     </div>
