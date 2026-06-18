@@ -10,17 +10,20 @@ and the **Gemini API** (Google AI Studio) for translation and writing feedback.
 ## Features
 
 - **🏠 Dashboard** — greeting, daily-usage streak, stat cards, quick actions.
-- **🔤 Translator** — English → Uzbek with word type, explanation, 2 examples,
-  and clickable synonyms. Save words to the vocabulary bank. Keeps the last 50
-  translations.
+- **🔤 Translator** — two-way English ⇄ Uzbek (direction toggle) with word type,
+  explanation, 2 examples, and clickable synonyms. Save words to the vocabulary
+  bank. Keeps the last 50 translations.
 - **✍️ Writing Practice** — generate a topic (3 difficulty levels) with 10
-  required words, write with a live word counter, and get feedback: a corrected
-  version (changes in **bold**), per-error explanations, 1–5 star scores for
-  Ideas / Vocabulary / Grammar, and an encouraging comment. Full history.
-- **📚 Vocabulary Bank** — list, filter (All / Known / Still learning), and a
-  flashcard review mode.
-- **📊 Progress** — top grammar mistakes, writings per month, and vocabulary
-  growth over time.
+  required words; chips light up as you use them and the check is gated until
+  all are used. Feedback gives a corrected version (changes in **bold**),
+  per-error explanations, 1–5 star scores for Ideas / Vocabulary / Grammar, and
+  an encouraging comment. Full history.
+- **📚 Vocabulary Bank** — spaced-repetition (SRS) flashcards that surface the
+  words due today, manual word add, shuffle, filters (All / Due / Known / Still
+  learning), and search.
+- **📊 Progress** — writing score trends, top grammar mistakes, writings per
+  month, and vocabulary growth over time.
+- **⚙️ Settings** — export/import a full JSON backup of your data, and reset.
 
 ## Setup
 
@@ -69,12 +72,13 @@ the key stays server-side; the UI wouldn't need to change.
 
 | Key                    | Contents                                              |
 | ---------------------- | ----------------------------------------------------- |
-| `translations_history` | Last 50 translations                                  |
-| `writing_history`      | Submitted writings + feedback                         |
-| `vocabulary_bank`      | Saved words with status & review counts               |
+| `translations_history` | Last 50 translations (with direction)                 |
+| `writing_history`      | Submitted writings + feedback + required-words used   |
+| `vocabulary_bank`      | Saved words with status, review counts & SRS schedule |
 | `streak_data`          | `{ lastActiveDate, currentStreak, longestStreak }`    |
 
-Everything lives in your browser. Clearing site data resets the app.
+Everything lives in your browser. Clearing site data resets the app — use
+**Settings → Export backup** to keep a copy.
 
 ## Deployment (Netlify)
 
@@ -95,5 +99,5 @@ npm run lint      # run ESLint
 
 ## Possible future features
 
-Speaking practice (microphone), Anki export, audio pronunciation (TTS), and a
-grammar reference section.
+Speaking practice (microphone), a grammar reference section, a Netlify Function
+proxy to keep the Gemini key server-side, and a light-theme toggle.

@@ -9,9 +9,13 @@ import {
   ArrowLeft,
   PartyPopper,
   Search,
+  Plus,
+  Shuffle,
+  CalendarClock,
 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
-import { STORAGE_KEYS } from '../lib/storage'
+import { STORAGE_KEYS, makeId, dayKey } from '../lib/storage'
+import { newSrs, schedule, isDue, dueLabel, shuffle as shuffleArr } from '../lib/srs'
 import {
   Card,
   PageHeader,
@@ -25,6 +29,7 @@ import { useToast } from '../components/Toast'
 
 const FILTERS = [
   { key: 'all', label: 'All' },
+  { key: 'due', label: 'Due' },
   { key: 'known', label: 'Known' },
   { key: 'unknown', label: 'Still learning' },
 ]
@@ -35,6 +40,11 @@ export default function Vocabulary() {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(20)
+  const [shuffleOn, setShuffleOn] = useState(false)
+
+  // Manual-add form
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState({ word: '', translation: '', example: '' })
 
   // Flashcard session state
   const [flashOn, setFlashOn] = useState(false)
@@ -44,7 +54,12 @@ export default function Vocabulary() {
 
   const term = query.trim().toLowerCase()
   const filtered = vocab.filter((v) => {
-    const byStatus = filter === 'all' ? true : v.status === filter
+    const byStatus =
+      filter === 'all'
+        ? true
+        : filter === 'due'
+          ? isDue(v)
+          : v.status === filter
     const byQuery =
       !term ||
       v.word.toLowerCase().includes(term) ||
@@ -52,8 +67,10 @@ export default function Vocabulary() {
     return byStatus && byQuery
   })
 
+  const dueCards = vocab.filter((v) => isDue(v))
   const counts = {
     all: vocab.length,
+    due: dueCards.length,
     known: vocab.filter((v) => v.status === 'known').length,
     unknown: vocab.filter((v) => v.status === 'unknown').length,
   }
@@ -71,23 +88,49 @@ export default function Vocabulary() {
     updateWord(v.id, { status: v.status === 'known' ? 'unknown' : 'known' })
   }
 
-  // ---- Flashcards ----
-  function startFlashcards() {
-    const ids = filtered.map((v) => v.id)
+  // ---- Manual add ----
+  function addWord(e) {
+    e.preventDefault()
+    const word = form.word.trim()
+    const translation = form.translation.trim()
+    if (!word || !translation) return
+    const entry = {
+      id: makeId(),
+      word,
+      translation,
+      example: form.example.trim(),
+      status: 'unknown',
+      timesReviewed: 0,
+      dateAdded: dayKey(),
+      srs: newSrs(),
+    }
+    setVocab((prev) => [entry, ...prev])
+    setForm({ word: '', translation: '', example: '' })
+    setAdding(false)
+    toast.success(`"${word}" added`)
+  }
+
+  // ---- Flashcards / SRS review ----
+  // Reviews the cards that are due today; if none are due, reviews everything.
+  function startReview() {
+    const pool = dueCards.length > 0 ? dueCards : vocab
+    let ids = pool.map((v) => v.id)
     if (ids.length === 0) return
+    if (shuffleOn) ids = shuffleArr(ids)
     setDeck(ids)
     setPos(0)
     setRevealed(false)
     setFlashOn(true)
   }
 
-  function answerCard(known) {
+  function answerCard(remembered) {
     const id = deck[pos]
     const card = vocab.find((v) => v.id === id)
     if (card) {
       updateWord(id, {
-        status: known ? 'known' : 'unknown',
+        status: remembered ? 'known' : 'unknown',
         timesReviewed: (card.timesReviewed ?? 0) + 1,
+        srs: schedule(card.srs, remembered),
       })
     }
     setRevealed(false)
@@ -99,20 +142,80 @@ export default function Vocabulary() {
       ? vocab.find((v) => v.id === deck[pos])
       : null
   const progress = deck.length ? (pos / deck.length) * 100 : 0
+  const reviewLabel = dueCards.length > 0 ? `Review (${dueCards.length})` : 'Review all'
 
   return (
     <div>
       <PageHeader
         icon={BookMarked}
         title="Vocabulary Bank"
-        subtitle="Review the words you saved from the Translator."
+        subtitle="Spaced-repetition flashcards — review the words that are due today."
       >
-        {vocab.length > 0 && !flashOn && (
-          <Button onClick={startFlashcards} disabled={filtered.length === 0}>
-            <Layers size={16} /> Flashcards
-          </Button>
+        {!flashOn && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setAdding((a) => !a)}>
+              <Plus size={16} /> Add word
+            </Button>
+            {vocab.length > 0 && (
+              <Button onClick={startReview}>
+                <Layers size={16} /> {reviewLabel}
+              </Button>
+            )}
+          </div>
         )}
       </PageHeader>
+
+      {/* Manual add form */}
+      <AnimatePresence>
+        {adding && !flashOn && (
+          <motion.form
+            onSubmit={addWord}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-5 overflow-hidden"
+          >
+            <Card hover={false}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  value={form.word}
+                  onChange={(e) => setForm((f) => ({ ...f, word: e.target.value }))}
+                  placeholder="Word (English)"
+                  autoFocus
+                />
+                <Input
+                  value={form.translation}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, translation: e.target.value }))
+                  }
+                  placeholder="Translation (Uzbek)"
+                />
+              </div>
+              <Input
+                className="mt-3"
+                value={form.example}
+                onChange={(e) => setForm((f) => ({ ...f, example: e.target.value }))}
+                placeholder="Example sentence (optional)"
+              />
+              <div className="mt-3 flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setAdding(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!form.word.trim() || !form.translation.trim()}
+                >
+                  <Plus size={16} /> Add to bank
+                </Button>
+              </div>
+            </Card>
+          </motion.form>
+        )}
+      </AnimatePresence>
 
       {/* Flashcard mode */}
       {flashOn ? (
@@ -232,6 +335,7 @@ export default function Vocabulary() {
               </p>
               <p className="mt-1 text-sm text-slate-400">
                 You reviewed {deck.length} card{deck.length === 1 ? '' : 's'}.
+                Come back tomorrow for your next due words.
               </p>
             </motion.div>
           )}
@@ -262,27 +366,43 @@ export default function Vocabulary() {
                 </motion.button>
               ))}
             </div>
-            {vocab.length > 8 && (
-              <Input
-                icon={Search}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search words…"
-                className="w-full sm:w-52"
-              />
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShuffleOn((s) => !s)}
+                title="Shuffle review order"
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  shuffleOn
+                    ? 'bg-fuchsia-500/15 text-fuchsia-200 ring-1 ring-inset ring-fuchsia-400/30'
+                    : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                <Shuffle size={14} /> Shuffle{shuffleOn ? ': on' : ''}
+              </button>
+              {vocab.length > 8 && (
+                <Input
+                  icon={Search}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search words…"
+                  className="w-full sm:w-52"
+                />
+              )}
+            </div>
           </div>
 
           {vocab.length === 0 ? (
             <EmptyState icon={BookMarked} title="Your vocabulary bank is empty">
-              Save words from the Translator to build your bank.
+              Save words from the Translator or add them manually to build your bank.
             </EmptyState>
           ) : filtered.length === 0 ? (
             <EmptyState icon={Search} title="No words in this filter" />
           ) : (
             <>
             <ul className="reveal-stagger space-y-2">
-                {filtered.slice(0, visibleCount).map((v) => (
+                {filtered.slice(0, visibleCount).map((v) => {
+                  const due = isDue(v)
+                  return (
                   <li key={v.id}>
                     <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
                       <div className="min-w-0">
@@ -299,8 +419,16 @@ export default function Vocabulary() {
                             {v.example}
                           </p>
                         )}
-                        <div className="mt-1.5 text-xs text-slate-600">
-                          Reviewed {v.timesReviewed ?? 0}×
+                        <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-600">
+                          <span>Reviewed {v.timesReviewed ?? 0}×</span>
+                          <span className="text-slate-700">·</span>
+                          <span
+                            className={`inline-flex items-center gap-1 ${
+                              due ? 'text-amber-400' : 'text-slate-500'
+                            }`}
+                          >
+                            <CalendarClock size={12} /> {dueLabel(v)}
+                          </span>
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
@@ -323,7 +451,8 @@ export default function Vocabulary() {
                       </div>
                     </Card>
                   </li>
-                ))}
+                  )
+                })}
             </ul>
             {filtered.length > visibleCount && (
               <button

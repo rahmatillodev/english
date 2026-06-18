@@ -8,6 +8,7 @@ const Translator = lazy(() => import('./pages/Translator'))
 const Writing = lazy(() => import('./pages/Writing'))
 const Vocabulary = lazy(() => import('./pages/Vocabulary'))
 const Progress = lazy(() => import('./pages/Progress'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="writing" element={<Writing />} />
         <Route path="vocabulary" element={<Vocabulary />} />
         <Route path="progress" element={<Progress />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

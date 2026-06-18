@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  Legend,
 } from 'recharts'
 import { BarChart3 } from 'lucide-react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
@@ -73,6 +74,20 @@ export default function Progress() {
       .sort((a, b) => a.month.localeCompare(b.month))
   }, [writing])
 
+  // Writing scores over time (oldest → newest), one point per checked writing.
+  const scoreTrend = useMemo(() => {
+    return [...writing]
+      .filter((w) => w.scores)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .map((w, i) => ({
+        label: `#${i + 1}`,
+        date: new Date(w.date).toLocaleDateString(),
+        ideas: w.scores.ideas,
+        vocabulary: w.scores.vocabulary,
+        grammar: w.scores.grammar,
+      }))
+  }, [writing])
+
   // Cumulative vocabulary growth over time.
   const vocabGrowth = useMemo(() => {
     const perDay = {}
@@ -102,6 +117,30 @@ export default function Progress() {
         </EmptyState>
       ) : (
         <div className="reveal-stagger">
+          <ChartCard
+            title="Writing scores over time"
+            hasData={scoreTrend.length > 0}
+            emptyText="Check some writing to see your score trend."
+          >
+            <LineChart data={scoreTrend} margin={{ left: -10, right: 16 }}>
+              <CartesianGrid stroke="rgba(148,163,184,0.1)" />
+              <XAxis dataKey="label" tick={AXIS} />
+              <YAxis domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tick={AXIS} />
+              <Tooltip
+                contentStyle={TOOLTIP_STYLE}
+                labelFormatter={(label, payload) =>
+                  payload?.[0]?.payload?.date
+                    ? `${label} · ${payload[0].payload.date}`
+                    : label
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="ideas" name="Ideas" stroke="#818cf8" strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="vocabulary" name="Vocabulary" stroke="#34d399" strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="grammar" name="Grammar" stroke="#e879f9" strokeWidth={2.5} dot={{ r: 3 }} />
+            </LineChart>
+          </ChartCard>
+
           <ChartCard
             title="Top grammar mistakes"
             hasData={grammarData.length > 0}

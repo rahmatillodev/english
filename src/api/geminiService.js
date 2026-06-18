@@ -180,12 +180,17 @@ const TRANSLATE_SCHEMA = {
   additionalProperties: false,
 }
 
-export function translate(text) {
+// `direction` is 'en-uz' (default) or 'uz-en'. Examples are always English +
+// Uzbek and synonyms are always of the English word, so the result shape is
+// identical regardless of direction — only the `translation` language flips.
+export function translate(text, direction = 'en-uz') {
+  const [from, to] = direction === 'uz-en' ? ['Uzbek', 'English'] : ['English', 'Uzbek']
   const prompt =
-    `Translate the following English word or sentence into Uzbek and describe it ` +
+    `Translate the following ${from} word or sentence into ${to} and describe it ` +
     `for an elementary learner.\n\n"${text}"\n\n` +
-    `Provide the main Uzbek translation, the word type, a short simple explanation, ` +
-    `exactly 2 example sentences (English + Uzbek), and up to 5 English synonyms.`
+    `Provide the main ${to} translation, the word type, a short simple explanation ` +
+    `(in simple English), exactly 2 example sentences (English + Uzbek), and up to ` +
+    `5 English synonyms of the English word.`
   return requestJSON(prompt, TRANSLATE_SCHEMA, { system: TUTOR_SYSTEM })
 }
 
